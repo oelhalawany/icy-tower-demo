@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Icy Tower Clone</title>
+    <style>
+        body {
+            margin: 0;
+            background: #0b0c10;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+        }
+        h1 {
+            margin: 5px 0;
+            text-shadow: 0 0 10px #00d2ff;
+        }
+        #game-container {
+            position: relative;
+        }
+        canvas {
+            background: linear-gradient(to bottom, #1f4068, #162447);
+            border: 4px solid #00d2ff;
+            box-shadow: 0 0 30px rgba(0, 210, 255, 0.3);
+            display: block;
+        }
+        .controls {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #8f94fb;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>ICY TOWER</h1>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+    </div>
+    <div class="controls">
+        <strong>Controls:</strong> Left/Right Arrows = Move | Spacebar = Jump
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // Game Configuration
+        const GRAVITY = 0.4;
+        const BOUNCE_DAMPING = 0.6;
+        
+        // Game States
+        let score = 0;
+        let highestFloorReached = 0;
+        let gameOver = false;
+        let cameraY = 0; 
+        let keys = {};
+
+        // Player object
+        let player = {
+            x: 185,
+            y: 500,
+            width: 30,
+            height: 40,
+            vx: 0,
+            vy: 0,
+            speed: 5,
+            jumpPower: -12,
+            grounded: false
+        };
+
+        // Platforms array
+        let platforms = [];
+        const platformHeight = 15;
+
+        // Initialize/Restart Game
+        function initGame() {
+            score = 0;
+            highestFloorReached = 0;
+            gameOver = false;
+            cameraY = 0;
+            
+            player.x = 185;
+            player.y = 500;
+            player.vx = 0;
+            player.vy = 0;
+            player.grounded = false;
+
+            platforms = [];
+            
+            // Base Ground
+            platforms.push({ x: 0, y: 580, width: canvas.width, floorNum: 0 });
+
+            // Procedurally generate the initial batch of tower floors
+            for (let i = 1; i < 50; i++) {
+                generatePlatform(i);
+            }
+        }
+
+        // Generate a structured platform
+        function generatePlatform(floorIndex) {
+            const y = 580 - (floorIndex * 80); // 80px gaps between floors
+            const width = Math.max(80, 200 - (floorIndex * 1.5)); // Platforms shrink as you climb
+            const x = Math.random() * (canvas.width - width);
+            platforms.push({ x: x, y: y, width: width, floorNum: floorIndex });
+        }
+
+        // Input Trackers
+        window.addEventListener("keydown", (e) => {
+            if (e.code === "Space" && gameOver) {
+                initGame();
+            } else {
+                keys[e.code] = true;
+            }
+        });
+        window.addEventListener("keyup", (e) => keys[e.code] = false);
+
+        function update() {
+            if (gameOver) return;
+
+            // Horizontal Input & Inertia simulation
+            if (keys["ArrowLeft"]) {
+                player.vx = -player.speed;
+            } else if (keys["ArrowRight"]) {
+                player.vx = player.speed;
+            } else {
+                player.vx *= 0.8; // Soft braking
+            }
+
+            // Jump Action
+            if (keys["Space"] && player.grounded) {
+                player.vy = player.jumpPower;
+                player.grounded = false;
+            }
+
+            // Apply Physical Forces
+            player.vy += GRAVITY;
+            player.x += player.vx;
+            player.y += player.vy;
+
+            // Handle Wall Collisions (Bouncing off edges like Icy Tower)
+            if (player.x < 0) {
+                player.x = 0;
+                player.vx = -player.vx * BOUNCE_DAMPING; 
+            }
+            if (player.x > canvas.width - player.width) {
+                player.x = canvas.width - player.width;
+                player.vx = -player.vx * BOUNCE_DAMPING;
+            }
+
+            // Collision Detection with Platforms (Landing only when falling)
+            player.grounded = false;
+            for (let plat of platforms) {
+                if (
+                    player.vx >= -20 && player.vy > 0 && // Moving downwards
+                    player.x + player.width > plat.x &&
+                    player.x < plat.x + plat.width &&
+                    player.y + player.height >= plat.y &&
+                    player.y + player.height <= plat.y + platformHeight + player.vy
+                ) {
+                    player.y = plat.y - player.height;
+                    player.vy = 0;
+                    player.grounded = true;
+
+                    // Update Floor Score
+                    if (plat.floorNum > highestFloorReached) {
+                        highestFloorReached = plat.floorNum;
+                        score = highestFloorReached * 10;
+                    }
+                }
+            }
+
+            // Dynamic Camera Tracking (Scrolls up as player ascends)
+            if (player.y < cameraY + 300) {
+                cameraY = player.y - 300;
+            }
+
+            // Procedural Endless Generation (Generate ahead of camera view)
+            while (platforms[platforms.length - 1].y > cameraY - 200) {
+                generatePlatform(platforms.length);
+            }
+
+            // Game Over evaluation (Falling off the visible screen bottom)
+            if (player.y > cameraY + canvas.height) {
+                gameOver = true;
+            }
+        }
+
+        function draw() {
+            // Render Background
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            // Translate the canvas context inversely to the camera height
+            ctx.translate(0, -cameraY);
+
+            // Render Platforms
+            for (let plat of platforms) {
+                // Color change every 10 floors for visual progression
+                let colorHue = (plat.floorNum * 25) % 360;
+                ctx.fillStyle = plat.floorNum === 0 ? "#4e4e50" : `hsl(${colorHue}, 70%, 50%)`;
+                ctx.fillRect(plat.x, plat.y, plat.width, platformHeight);
+                
+                // Draw floor indicators
+                if (plat.floorNum > 0) {
+                    ctx.fillStyle = "#fff";
+                    ctx.font = "10px sans-serif";
+                    ctx.fillText(`FL ${plat.floorNum}`, plat.x + 5, plat.y + 12);
+                }
+            }
+
+            // Render Character
+            ctx.fillStyle = "#00d2ff";
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            // Character Eyes mapping movement direction
+            ctx.fillStyle = "#fff";
+            let eyeOffset = player.vx > 0.5 ? 15 : (player.vx < -0.5 ? 5 : 10);
+            ctx.fillRect(player.x + eyeOffset, player.y + 10, 5, 5);
+            ctx.fillRect(player.x + eyeOffset + 8, player.y + 10, 5, 5);
+
+            ctx.restore();
+
+            // Static UI Display (Score Overlay)
+            ctx.fillStyle = "#fff";
+            ctx.font = "bold 20px 'Courier New'";
+            ctx.fillText(`SCORE: ${score}`, 20, 40);
+
+            // Game Over Graphic Screen Overlay
+            if (gameOver) {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "#ff2e63";
+                ctx.font = "bold 40px 'Courier New'";
+                ctx.textAlign = "center";
+                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 20);
+
+                ctx.fillStyle = "#fff";
+                ctx.font = "20px 'Courier New'";
+                ctx.fillText(`Final Score: ${score}`, canvas.width / 2, canvas.height / 2 + 30);
+                
+                ctx.font = "16px sans-serif";
+                ctx.fillStyle = "#00d2ff";
+                ctx.fillText("Press SPACEBAR to Restart", canvas.width / 2, canvas.height / 2 + 80);
+                ctx.textAlign = "left"; // Reset positioning rules
+            }
+        }
+
+        // Consistent Execution Clock Loop
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Boot Init Engine
+        initGame();
+        gameLoop();
+    </script>
+</body>
+</html>
