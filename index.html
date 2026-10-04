@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Icy Tower Clone</title>
+    <title>Icy Climb Demo</title>
     <style>
         body {
             margin: 0;
@@ -40,7 +40,7 @@
 </head>
 <body>
 
-    <h1>ICY TOWER</h1>
+    <h1>ICY CLIMB</h1>
     <div id="game-container">
         <canvas id="gameCanvas" width="400" height="600"></canvas>
     </div>
@@ -145,7 +145,7 @@
             player.x += player.vx;
             player.y += player.vy;
 
-            // Handle Wall Collisions (Bouncing off edges like Icy Tower)
+            // Handle Wall Collisions (Bouncing off edges)
             if (player.x < 0) {
                 player.x = 0;
                 player.vx = -player.vx * BOUNCE_DAMPING; 
